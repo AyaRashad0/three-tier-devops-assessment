@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Three-Tier DevOps Assessment</title>
+  <style>body{font-family:system-ui,Arial,sans-serif;background:#f2f6fa;color:#15314b;display:grid;min-height:100vh;place-items:center;margin:0}.card{background:white;padding:3rem;border-radius:18px;box-shadow:0 8px 28px #0001;text-align:center;max-width:520px}#result{font-size:1.3rem;font-weight:600}</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Three-Tier Demo</h1>
+    <p>Frontend → FastAPI (PostgreSQL runs separately)</p>
+    <p id="result">Loading...</p>
+    <button onclick="loadMessage()">Reload message</button>
+  </main>
+  <script>
+    async function loadMessage() {
+      const label = document.getElementById('result');
+      label.textContent = 'Loading...';
+      try {
+        const response = await fetch('/api/message');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        label.textContent = data.message;
+      } catch (error) {
+        label.textContent = `API error: ${error.message}`;
+      }
+    }
+    loadMessage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+#!/bin/bash
+set -euxo pipefail
+exec > >(tee -a /var/log/hello-setup.log) 2>&1
+# Install Docker Engine and Docker Compose plugin on Amazon Linux 2023.
+dnf install -y docker  openssl
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fL --retry 5 --retry-delay 3   https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64   -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+docker compose version
+mkdir -p /opt/hello/backend /opt/hello/frontend
+printf '%s' '${compose}' | base64 -d > /opt/hello/compose.yaml
+printf '%s' '${backend_dockerfile}' | base64 -d > /opt/hello/backend/Dockerfile
+printf '%s' '${backend_main}' | base64 -d > /opt/hello/backend/main.py
+printf '%s' '${backend_requirements}' | base64 -d > /opt/hello/backend/requirements.txt
+printf '%s' '${backend_dockerignore}' | base64 -d > /opt/hello/backend/.dockerignore
+printf '%s' '${frontend_dockerfile}' | base64 -d > /opt/hello/frontend/Dockerfile
+printf '%s' '${frontend_html}' | base64 -d > /opt/hello/frontend/index.html
+printf '%s' '${frontend_nginx}' | base64 -d > /opt/hello/frontend/nginx.conf
+printf '%s' '${frontend_dockerignore}' | base64 -d > /opt/hello/frontend/.dockerignore
+# The previous local-only bind address is changed only on the EC2 copy.
+sed -i 's/127.0.0.1:8080:8080/80:8080/g' /opt/hello/compose.yaml
+# Database credentials are generated on the instance (no password in Git or Terraform state).
+DB_PASSWORD=$(openssl rand -hex 24)
+printf 'DB_NAME=demo\nDB_USER=demo_user\nDB_PASSWORD=%s\n' "$DB_PASSWORD" > /opt/hello/.env
+chmod 600 /opt/hello/.env
+cd /opt/hello
+docker compose up --build -d
+# Ensure containers restart automatically if instance is rebooted.
+cat >/etc/systemd/system/hello-compose.service <<'SERVICE'
+[Unit]
+Description=Three-tier Docker Compose demo
+After=docker.service network-online.target
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hello
+ExecStart=/usr/local/lib/docker/cli-plugins/docker-compose up -d
+ExecStop=/usr/local/lib/docker/cli-plugins/docker-compose down
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+SERVICE
+systemctl daemon-reload
+systemctl enable hello-compose.service
