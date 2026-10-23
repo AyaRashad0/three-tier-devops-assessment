@@ -1,0 +1,51 @@
+
+name: Three-Tier CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install pytest httpx
+
+      - name: Test Hello World API
+        run: |
+          cd backend
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from main import app
+
+          client = TestClient(app)
+          response = client.get("/api/message")
+
+          assert response.status_code == 200
+          assert response.json() == {"message": "Hello World"}
+
+          print("API test passed")
+          PY
+
+      - name: Build backend Docker image
+        run: docker build -t hello-backend:test ./backend
+
+      - name: Build frontend Docker image
+        run: docker build -t hello-frontend:test ./frontend
